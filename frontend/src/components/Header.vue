@@ -12,7 +12,7 @@
       </ul>
     </nav>
     <div class="actions">
-      <input type="text" placeholder="Search..." class="search-bar">
+      <input type="text" v-model="searchQuery" @input="handleSearch" placeholder="Search..." class="search-bar">
       <button class="cart-btn">🛒</button>
     </div>
   </header>
@@ -20,7 +20,17 @@
 
 <script>
 export default {
-  name: 'Header'
+  name: 'Header',
+  data() {
+    return {
+      searchQuery: ''
+    }
+  },
+  methods: {
+    handleSearch() {
+      this.$emit('search', this.searchQuery);
+    }
+  }
 }
 </script>
 
