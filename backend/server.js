@@ -1,4 +1,6 @@
+require('dotenv').config();
 const express = require('express');
+const { MongoClient, ObjectId } = require('mongodb');
 const app = express();
 const port = 3000;
 
@@ -11,57 +13,106 @@ app.use((req, res, next) => {
 // Middleware for parsing JSON bodies
 app.use(express.json());
 
-// Dummy data
-let lessons = [
-  { id: 1, subject: 'Mathematics', location: 'London', price: 100, spaces: 5, image: 'https://via.placeholder.com/150' },
-  { id: 2, subject: 'English', location: 'London', price: 100, spaces: 5, image: 'https://via.placeholder.com/150' },
-  { id: 3, subject: 'Science', location: 'London', price: 100, spaces: 5, image: 'https://via.placeholder.com/150' },
-  { id: 4, subject: 'History', location: 'London', price: 100, spaces: 5, image: 'https://via.placeholder.com/150' },
-  { id: 5, subject: 'Geography', location: 'London', price: 100, spaces: 5, image: 'https://via.placeholder.com/150' },
-  { id: 6, subject: 'Art', location: 'London', price: 100, spaces: 5, image: 'https://via.placeholder.com/150' },
-  { id: 7, subject: 'Music', location: 'London', price: 100, spaces: 5, image: 'https://via.placeholder.com/150' },
-  { id: 8, subject: 'Physical Education', location: 'London', price: 100, spaces: 5, image: 'https://via.placeholder.com/150' },
-  { id: 9, subject: 'Computer Science', location: 'London', price: 100, spaces: 5, image: 'https://via.placeholder.com/150' },
-  { id: 10, subject: 'Drama', location: 'London', price: 100, spaces: 5, image: 'https://via.placeholder.com/150' }
-];
+// MongoDB Connection
+const uri = process.env.MONGODB_URI;
+const client = new MongoClient(uri);
 
-let orders = [];
+let lessonsCollection;
+let ordersCollection;
 
-// Get all lessons
-app.get('/api/lessons', (req, res) => {
-  res.json(lessons);
+async function connectDB() {
+  try {
+    await client.connect();
+    console.log("Connected to MongoDB Atlas");
+    const db = client.db("class-booking-app");
+    lessonsCollection = db.collection("lessons");
+    ordersCollection = db.collection("orders");
+  } catch (err) {
+    console.error("Failed to connect to MongoDB Atlas", err);
+    process.exit(1);
+  }
+}
+
+// Get all lessons with sorting
+app.get('/api/lessons', async (req, res) => {
+  try {
+    const { sortBy, order } = req.query;
+    let sortOptions = {};
+    if (sortBy) {
+      sortOptions[sortBy] = order === 'desc' ? -1 : 1;
+    }
+    const lessons = await lessonsCollection.find({}).sort(sortOptions).toArray();
+    res.json(lessons);
+  } catch (err) {
+    res.status(500).send('Error fetching lessons');
+  }
 });
 
-// Save an order
-app.post('/api/orders', (req, res) => {
-  const order = req.body;
-  orders.push(order);
-  res.status(201).json(order);
+// Save an order and update lesson spaces
+app.post('/api/orders', async (req, res) => {
+  try {
+    const order = req.body;
+
+    // Validate order
+    if (!order.name || !order.phone || !order.cart) {
+      return res.status(400).send('Invalid order format');
+    }
+
+    // Array to hold bulk write operations
+    const bulkOps = order.cart.map(item => ({
+      updateOne: {
+        filter: { _id: new ObjectId(item.lessonId) },
+        update: { $inc: { spaces: -item.spaces } }
+      }
+    }));
+
+    // Execute bulk write to update spaces
+    await lessonsCollection.bulkWrite(bulkOps);
+
+    // Insert the order
+    const result = await ordersCollection.insertOne({
+      name: order.name,
+      phone: order.phone,
+      lessons: order.cart.map(item => ({ lessonId: new ObjectId(item.lessonId), spaces: item.spaces })),
+      createdAt: new Date()
+    });
+
+    res.status(201).json(result);
+  } catch (err) {
+    console.error("Order creation failed:", err);
+    res.status(500).send('Error saving order');
+  }
 });
 
 // Update lesson spaces
-app.put('/api/lessons/:id', (req, res) => {
-  const lessonId = parseInt(req.params.id);
-  const { spaces } = req.body;
-  const lesson = lessons.find(l => l.id === lessonId);
-  if (lesson) {
-    lesson.spaces = spaces;
-    res.json(lesson);
-  } else {
-    res.status(404).send('Lesson not found');
+app.put('/api/lessons/:id', async (req, res) => {
+  try {
+    const lessonId = new ObjectId(req.params.id);
+    const { spaces } = req.body;
+    const result = await lessonsCollection.updateOne({ _id: lessonId }, { $set: { spaces } });
+    res.json(result);
+  } catch (err) {
+    res.status(500).send('Error updating lesson');
   }
 });
 
 // Search for lessons
-app.get('/api/search', (req, res) => {
-  const query = req.query.q.toLowerCase();
-  const results = lessons.filter(lesson =>
-    lesson.subject.toLowerCase().includes(query) ||
-    lesson.location.toLowerCase().includes(query)
-  );
-  res.json(results);
+app.get('/api/search', async (req, res) => {
+  try {
+    const query = req.query.q;
+    const results = await lessonsCollection.find({
+      $or: [
+        { subject: { $regex: query, $options: 'i' } },
+        { location: { $regex: query, $options: 'i' } }
+      ]
+    }).toArray();
+    res.json(results);
+  } catch (err) {
+    res.status(500).send('Error searching lessons');
+  }
 });
 
 app.listen(port, () => {
   console.log(`Server listening at http://localhost:${port}`);
+  connectDB();
 });

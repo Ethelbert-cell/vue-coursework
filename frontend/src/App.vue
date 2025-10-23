@@ -17,7 +17,16 @@ export default {
       cart: []
     }
   },
+  mounted() {
+    console.log('App component mounted');
+  },
   methods: {
+    proceedToCheckout() {
+      this.$refs.checkout.$el.scrollIntoView({ behavior: 'smooth' });
+    },
+    handleSearch(query) {
+      this.$refs.lessons.searchLessons(query);
+    },
     addToCart(lesson) {
       this.cart.push(lesson)
     },
@@ -35,15 +44,6 @@ export default {
       .then(response => response.json())
       .then(data => {
         console.log('Order submitted:', data);
-        this.cart.forEach(item => {
-          fetch(`/api/lessons/${item.id}`, {
-            method: 'PUT',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ spaces: item.spaces - 1 }),
-          });
-        });
         this.cart = [];
         this.$refs.lessons.fetchLessons();
       })
@@ -57,11 +57,11 @@ export default {
 
 <template>
   <div id="app">
-    <Header />
+    <Header @search="handleSearch" />
     <main>
       <Lessons ref="lessons" @add-to-cart="addToCart" />
-      <ShoppingCart :cart="cart" @remove-from-cart="removeFromCart" />
-      <Checkout @submit-order="submitOrder" />
+      <ShoppingCart :cart="cart" @remove-from-cart="removeFromCart" @proceed-to-checkout="proceedToCheckout" />
+      <Checkout ref="checkout" @submit-order="submitOrder" />
     </main>
   </div>
 </template>

@@ -1,10 +1,16 @@
 <template>
   <div class="lessons-container">
     <div class="toolbar">
-      <input type="text" v-model="searchQuery" @input="searchLessons" placeholder="Search lessons..." class="search-input">
       <select v-model="selectedSubject" @change="filterLessons" class="filter-select">
         <option value="">All Subjects</option>
         <option v-for="subject in subjects" :key="subject" :value="subject">{{ subject }}</option>
+      </select>
+      <select v-model="sortKey" @change="sortLessons" class="filter-select">
+        <option value="">Sort by</option>
+        <option value="subject">Subject</option>
+        <option value="location">Location</option>
+        <option value="price">Price</option>
+        <option value="spaces">Spaces</option>
       </select>
     </div>
     <div class="lesson-grid">
@@ -27,8 +33,8 @@ export default {
   data() {
     return {
       lessons: [],
-      searchQuery: '',
       selectedSubject: '',
+      sortKey: '',
     }
   },
   created() {
@@ -48,17 +54,33 @@ export default {
   },
   methods: {
     fetchLessons() {
-      fetch('/api/lessons')
-        .then(response => response.json())
+      console.log('Attempting to fetch lessons...');
+      let url = '/api/lessons';
+      if (this.sortKey) {
+        url += `?sortBy=${this.sortKey}&order=asc`;
+      }
+      fetch(url)
+        .then(response => {
+          console.log('Fetch response received:', response.status);
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+          return response.json();
+        })
         .then(data => {
+          console.log('Lessons data received:', data);
           this.lessons = data;
         })
         .catch(error => {
           console.error('Error fetching lessons:', error);
+          console.error('Fetch error details:', error.message, error.stack);
         });
     },
-    searchLessons() {
-      fetch(`/api/search?q=${this.searchQuery}`)
+    sortLessons() {
+      this.fetchLessons();
+    },
+    searchLessons(query) {
+      fetch(`/api/search?q=${query}`)
         .then(response => response.json())
         .then(data => {
           this.lessons = data;

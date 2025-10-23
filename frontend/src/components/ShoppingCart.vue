@@ -19,7 +19,7 @@
           <span>Total:</span>
           <span>£{{ totalPrice }}</span>
         </div>
-        <button class="checkout-btn">Proceed to Checkout</button>
+        <button @click="proceedToCheckout" class="checkout-btn">Proceed to Checkout</button>
       </div>
     </div>
   </div>
@@ -42,6 +42,9 @@ export default {
   methods: {
     removeFromCart(index) {
       this.$emit('remove-from-cart', index)
+    },
+    proceedToCheckout() {
+      this.$emit('proceed-to-checkout');
     }
   }
 }
