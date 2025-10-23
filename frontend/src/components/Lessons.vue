@@ -12,6 +12,7 @@
         <option value="price">Price</option>
         <option value="spaces">Spaces</option>
       </select>
+      <button @click="toggleSortOrder" class="sort-order-btn">{{ sortOrder === 'asc' ? 'Ascending' : 'Descending' }}</button>
     </div>
     <div class="lesson-grid">
       <div v-for="lesson in filteredLessons" :key="lesson.id" class="lesson-card">
@@ -21,7 +22,9 @@
           <p>{{ lesson.location }}</p>
           <p class="price">£{{ lesson.price }}</p>
         </div>
-        <button @click="addToCart(lesson)" class="add-to-cart-btn">Add to Cart</button>
+        <button @click="addToCart(lesson)" :disabled="lesson.spaces === 0" class="add-to-cart-btn">
+          {{ lesson.spaces === 0 ? 'Sold Out' : 'Add to Cart' }}
+        </button>
       </div>
     </div>
   </div>
@@ -35,6 +38,7 @@ export default {
       lessons: [],
       selectedSubject: '',
       sortKey: '',
+      sortOrder: 'asc',
     }
   },
   created() {
@@ -57,7 +61,7 @@ export default {
       console.log('Attempting to fetch lessons...');
       let url = '/api/lessons';
       if (this.sortKey) {
-        url += `?sortBy=${this.sortKey}&order=asc`;
+        url += `?sortBy=${this.sortKey}&order=${this.sortOrder}`;
       }
       fetch(url)
         .then(response => {
@@ -77,6 +81,10 @@ export default {
         });
     },
     sortLessons() {
+      this.fetchLessons();
+    },
+    toggleSortOrder() {
+      this.sortOrder = this.sortOrder === 'asc' ? 'desc' : 'asc';
       this.fetchLessons();
     },
     searchLessons(query) {

@@ -10,7 +10,7 @@
         <label for="phone">Phone Number</label>
         <input type="tel" id="phone" v-model="order.phone" required pattern="[0-9]+" placeholder="123-456-7890">
       </div>
-      <button type="submit" class="submit-btn">Place Order</button>
+      <button type="submit" :disabled="!isFormValid" class="submit-btn">Place Order</button>
     </form>
   </div>
 </template>
@@ -24,6 +24,17 @@ export default {
         name: '',
         phone: ''
       }
+    }
+  },
+  computed: {
+    isNameValid() {
+      return /^[A-Za-z\s]+$/.test(this.order.name);
+    },
+    isPhoneValid() {
+      return /^[0-9]+$/.test(this.order.phone);
+    },
+    isFormValid() {
+      return this.isNameValid && this.isPhoneValid;
     }
   },
   methods: {

@@ -13,7 +13,7 @@
     </nav>
     <div class="actions">
       <input type="text" v-model="searchQuery" @input="handleSearch" placeholder="Search..." class="search-bar">
-      <button class="cart-btn">🛒</button>
+      <button @click="toggleCart" :disabled="cart.length === 0" class="cart-btn">🛒</button>
     </div>
   </header>
 </template>
@@ -21,6 +21,12 @@
 <script>
 export default {
   name: 'Header',
+  props: {
+    cart: {
+      type: Array,
+      required: true
+    }
+  },
   data() {
     return {
       searchQuery: ''
@@ -29,6 +35,9 @@ export default {
   methods: {
     handleSearch() {
       this.$emit('search', this.searchQuery);
+    },
+    toggleCart() {
+      this.$emit('toggle-cart');
     }
   }
 }

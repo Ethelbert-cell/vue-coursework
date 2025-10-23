@@ -14,13 +14,17 @@ export default {
   },
   data() {
     return {
-      cart: []
+      cart: [],
+      showCart: false,
     }
   },
   mounted() {
     console.log('App component mounted');
   },
   methods: {
+    toggleCart() {
+      this.showCart = !this.showCart;
+    },
     proceedToCheckout() {
       this.$refs.checkout.$el.scrollIntoView({ behavior: 'smooth' });
     },
@@ -28,10 +32,15 @@ export default {
       this.$refs.lessons.searchLessons(query);
     },
     addToCart(lesson) {
-      this.cart.push(lesson)
+      this.cart.push(lesson);
+      lesson.spaces--;
     },
     removeFromCart(index) {
-      this.cart.splice(index, 1)
+      const removedItem = this.cart.splice(index, 1)[0];
+      const lesson = this.$refs.lessons.lessons.find(l => l._id === removedItem._id);
+      if (lesson) {
+        lesson.spaces++;
+      }
     },
     submitOrder(order) {
       fetch('/api/orders', {
@@ -41,14 +50,21 @@ export default {
         },
         body: JSON.stringify({ ...order, cart: this.cart }),
       })
-      .then(response => response.json())
+      .then(response => {
+        if (!response.ok) {
+          throw new Error('Order submission failed');
+        }
+        return response.json();
+      })
       .then(data => {
         console.log('Order submitted:', data);
         this.cart = [];
         this.$refs.lessons.fetchLessons();
+        alert('Order submitted successfully!');
       })
       .catch((error) => {
         console.error('Error:', error);
+        alert('There was a problem submitting your order.');
       });
     }
   }
@@ -57,11 +73,13 @@ export default {
 
 <template>
   <div id="app">
-    <Header @search="handleSearch" />
+    <Header @search="handleSearch" @toggle-cart="toggleCart" :cart="cart" />
     <main>
-      <Lessons ref="lessons" @add-to-cart="addToCart" />
-      <ShoppingCart :cart="cart" @remove-from-cart="removeFromCart" @proceed-to-checkout="proceedToCheckout" />
-      <Checkout ref="checkout" @submit-order="submitOrder" />
+      <Lessons v-if="!showCart" ref="lessons" @add-to-cart="addToCart" />
+      <div v-else>
+        <ShoppingCart :cart="cart" @remove-from-cart="removeFromCart" @proceed-to-checkout="proceedToCheckout" />
+        <Checkout ref="checkout" @submit-order="submitOrder" />
+      </div>
     </main>
   </div>
 </template>

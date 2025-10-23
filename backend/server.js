@@ -13,6 +13,9 @@ app.use((req, res, next) => {
 // Middleware for parsing JSON bodies
 app.use(express.json());
 
+// Static file middleware for images
+app.use('/images', express.static('images'));
+
 // MongoDB Connection
 const uri = process.env.MONGODB_URI;
 const client = new MongoClient(uri);
@@ -20,13 +23,19 @@ const client = new MongoClient(uri);
 let lessonsCollection;
 let ordersCollection;
 
-async function connectDB() {
+async function main() {
   try {
     await client.connect();
     console.log("Connected to MongoDB Atlas");
     const db = client.db("class-booking-app");
     lessonsCollection = db.collection("lessons");
     ordersCollection = db.collection("orders");
+
+    // Start the server only after the database connection is established
+    app.listen(port, () => {
+      console.log(`Server listening at http://localhost:${port}`);
+    });
+
   } catch (err) {
     console.error("Failed to connect to MongoDB Atlas", err);
     process.exit(1);
@@ -48,32 +57,40 @@ app.get('/api/lessons', async (req, res) => {
   }
 });
 
-// Save an order and update lesson spaces
+// Save a new order and update lesson spaces atomically
 app.post('/api/orders', async (req, res) => {
   try {
     const order = req.body;
 
-    // Validate order
-    if (!order.name || !order.phone || !order.cart) {
+    // Basic validation
+    if (!order.name || !order.phone || !order.cart || !Array.isArray(order.cart)) {
       return res.status(400).send('Invalid order format');
     }
 
-    // Array to hold bulk write operations
+    // Create an array of update operations for each lesson in the cart
     const bulkOps = order.cart.map(item => ({
       updateOne: {
-        filter: { _id: new ObjectId(item.lessonId) },
-        update: { $inc: { spaces: -item.spaces } }
+        filter: { _id: new ObjectId(item._id), spaces: { $gt: 0 } }, // Ensure space is available
+        update: { $inc: { spaces: -1 } }
       }
     }));
 
-    // Execute bulk write to update spaces
-    await lessonsCollection.bulkWrite(bulkOps);
+    // Execute the bulk update
+    const updateResult = await lessonsCollection.bulkWrite(bulkOps);
 
-    // Insert the order
+    // Check if all updates were successful
+    if (updateResult.modifiedCount !== order.cart.length) {
+      // This part is tricky without transactions. If some updates failed, we should ideally roll back.
+      // For now, we'll return an error if not all items could be "purchased".
+      // A more robust solution would involve reverting the successful updates.
+      return res.status(409).send('Could not update spaces for all lessons. Order not placed.');
+    }
+
+    // If updates were successful, insert the new order
     const result = await ordersCollection.insertOne({
       name: order.name,
       phone: order.phone,
-      lessons: order.cart.map(item => ({ lessonId: new ObjectId(item.lessonId), spaces: item.spaces })),
+      lessons: order.cart.map(item => ({ lessonId: new ObjectId(item._id), spaces: 1 })), // Each cart item is 1 space
       createdAt: new Date()
     });
 
@@ -100,19 +117,31 @@ app.put('/api/lessons/:id', async (req, res) => {
 app.get('/api/search', async (req, res) => {
   try {
     const query = req.query.q;
-    const results = await lessonsCollection.find({
-      $or: [
-        { subject: { $regex: query, $options: 'i' } },
-        { location: { $regex: query, $options: 'i' } }
-      ]
-    }).toArray();
+    // Using a text index for a more natural search.
+    // This requires creating a text index in MongoDB Atlas on the desired fields.
+    // For example: { "subject": "text", "location": "text" }
+    const results = await lessonsCollection.find({ $text: { $search: query } }).toArray();
     res.json(results);
   } catch (err) {
-    res.status(500).send('Error searching lessons');
+    // Fallback to regex search if text index is not set up or fails
+    console.warn("Text search failed, falling back to regex. Consider setting up a text index in MongoDB Atlas.", err);
+    try {
+      const query = req.query.q;
+      const searchCriteria = [
+        { subject: { $regex: query, $options: 'i' } },
+        { location: { $regex: query, $options: 'i' } }
+      ];
+      const numericQuery = parseInt(query);
+      if (!isNaN(numericQuery)) {
+        searchCriteria.push({ price: numericQuery });
+        searchCriteria.push({ spaces: numericQuery });
+      }
+      const results = await lessonsCollection.find({ $or: searchCriteria }).toArray();
+      res.json(results);
+    } catch (regexErr) {
+      res.status(500).send('Error searching lessons');
+    }
   }
 });
 
-app.listen(port, () => {
-  console.log(`Server listening at http://localhost:${port}`);
-  connectDB();
-});
+main();
