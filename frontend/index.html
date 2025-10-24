@@ -33,7 +33,7 @@
                     </button>
                 </div>
                 <div class="lesson-grid">
-                    <div v-for="lesson in sortedLessons" class="lesson-card">
+                    <div v-for="lesson in lessons" class="lesson-card">
                         <img :src="lesson.image" :alt="lesson.subject">
                         <h3>{{ lesson.subject }}</h3>
                         <p>{{ lesson.location }}</p>

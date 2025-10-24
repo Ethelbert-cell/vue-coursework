@@ -7,7 +7,7 @@ new Vue({
         cart: [],
         showCart: false,
         searchQuery: '',
-        sortKey: '',
+        sortKey: 'subject',
         sortOrder: 'asc',
         order: {
             name: '',
@@ -18,14 +18,20 @@ new Vue({
         this.fetchLessons();
     },
     computed: {
-        sortedLessons() {
-            return this.lessons;
-        },
         isFormValid() {
             return /^[A-Za-z\s]+$/.test(this.order.name) && /^[0-9]+$/.test(this.order.phone);
         }
     },
     methods: {
+        fetchLessons() {
+            let url = `${apiUrl}/api/lessons?sortBy=${this.sortKey}&order=${this.sortOrder}`;
+            fetch(url)
+                .then(response => response.json())
+                .then(data => {
+                    this.lessons = data;
+                })
+                .catch(error => console.error('Error fetching lessons:', error));
+        },
         searchLessons() {
             if (this.searchQuery) {
                 fetch(`${apiUrl}/api/search?q=${this.searchQuery}`)
@@ -33,26 +39,10 @@ new Vue({
                     .then(data => {
                         this.lessons = data;
                     })
-                    .catch(error => {
-                        console.error('Error searching lessons:', error);
-                    });
+                    .catch(error => console.error('Error searching lessons:', error));
             } else {
                 this.fetchLessons();
             }
-        },
-        fetchLessons() {
-            let url = `${apiUrl}/api/lessons`;
-            if (this.sortKey) {
-                url += `?sortBy=${this.sortKey}&order=${this.sortOrder}`;
-            }
-            fetch(url)
-                .then(response => response.json())
-                .then(data => {
-                    this.lessons = data;
-                })
-                .catch(error => {
-                    console.error('Error fetching lessons:', error);
-                });
         },
         addToCart(lesson) {
             this.cart.push(lesson);
@@ -66,34 +56,40 @@ new Vue({
             }
         },
         submitOrder() {
-            const promises = [];
-            this.cart.forEach(item => {
-                promises.push(
-                    fetch(`${apiUrl}/api/lessons/${item._id}`, {
-                        method: 'PUT',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ spaces: item.spaces }) // The space is already decremented
-                    })
-                );
+            const lessonIDs = this.cart.map(item => item._id);
+            const numberOfSpaces = this.cart.length;
+
+            const orderData = {
+                ...this.order,
+                lessonIDs,
+                numberOfSpaces
+            };
+
+            const promises = this.cart.map(item => {
+                return fetch(`${apiUrl}/api/lesson/${item._id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ spaces: item.spaces })
+                });
             });
 
             Promise.all(promises)
                 .then(() => {
-                    fetch(`${apiUrl}/api/orders`, {
+                    return fetch(`${apiUrl}/api/order`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ ...this.order, cart: this.cart })
-                    })
-                    .then(response => {
-                        if (!response.ok) { throw new Error('Order submission failed'); }
-                        return response.json();
-                    })
-                    .then(() => {
-                        alert('Order submitted successfully!');
-                        this.cart = [];
-                        this.showCart = false;
-                        this.fetchLessons();
-                    })
+                        body: JSON.stringify(orderData)
+                    });
+                })
+                .then(response => {
+                    if (!response.ok) { throw new Error('Order submission failed'); }
+                    return response.json();
+                })
+                .then(() => {
+                    alert('Order submitted successfully!');
+                    this.cart = [];
+                    this.showCart = false;
+                    this.fetchLessons(); // Refetch to show updated spaces
                 })
                 .catch(error => {
                     console.error('Error:', error);

@@ -61,12 +61,12 @@ app.get('/api/lessons', async (req, res) => {
 });
 
 // Save a new order
-app.post('/api/orders', async (req, res) => {
+app.post('/api/order', async (req, res) => {
   try {
     const order = req.body;
 
     // Basic validation
-    if (!order.name || !order.phone || !order.cart || !Array.isArray(order.cart)) {
+    if (!order.name || !order.phone || !order.lessonIDs || !Array.isArray(order.lessonIDs) || !order.numberOfSpaces) {
       return res.status(400).send('Invalid order format');
     }
 
@@ -74,7 +74,8 @@ app.post('/api/orders', async (req, res) => {
     const result = await ordersCollection.insertOne({
       name: order.name,
       phone: order.phone,
-      lessons: order.cart.map(item => ({ lessonId: new ObjectId(item._id), spaces: 1 })),
+      lessonIDs: order.lessonIDs.map(id => new ObjectId(id)),
+      numberOfSpaces: order.numberOfSpaces,
       createdAt: new Date()
     });
 
@@ -86,7 +87,7 @@ app.post('/api/orders', async (req, res) => {
 });
 
 // Update lesson spaces
-app.put('/api/lessons/:id', async (req, res) => {
+app.put('/api/lesson/:id', async (req, res) => {
   try {
     const lessonId = new ObjectId(req.params.id);
     const { spaces } = req.body;
