@@ -1,13 +1,84 @@
 <!DOCTYPE html>
-<html lang="">
-  <head>
+<html lang="en">
+<head>
     <meta charset="UTF-8">
-    <link rel="icon" href="/favicon.ico">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Vite App</title>
-  </head>
-  <body>
-    <div id="app"></div>
-    <script type="module" src="/src/main.js"></script>
-  </body>
+    <title>After School Classes</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="app">
+        <header>
+            <h1>After School Classes</h1>
+            <button @click="showCart = !showCart" :disabled="cart.length === 0">
+                <i class="fas fa-shopping-cart"></i> Cart ({{ cart.length }})
+            </button>
+        </header>
+
+        <main>
+            <div v-if="!showCart">
+                <!-- Lesson Display -->
+                <div class="toolbar">
+                    <input type="text" v-model="searchQuery" placeholder="Search lessons..." @input="searchLessons">
+                    <select v-model="sortKey" @change="fetchLessons">
+                        <option value="">Sort by</option>
+                        <option value="subject">Subject</option>
+                        <option value="location">Location</option>
+                        <option value="price">Price</option>
+                        <option value="spaces">Spaces</option>
+                    </select>
+                    <button @click="sortOrder = sortOrder === 'asc' ? 'desc' : 'asc'; fetchLessons()">
+                        {{ sortOrder === 'asc' ? 'Ascending' : 'Descending' }}
+                    </button>
+                </div>
+                <div class="lesson-grid">
+                    <div v-for="lesson in sortedLessons" class="lesson-card">
+                        <img :src="lesson.image" :alt="lesson.subject">
+                        <h3>{{ lesson.subject }}</h3>
+                        <p>{{ lesson.location }}</p>
+                        <p>£{{ lesson.price }}</p>
+                        <p>{{ lesson.spaces }} spaces available</p>
+                        <button @click="addToCart(lesson)" :disabled="lesson.spaces === 0">
+                            {{ lesson.spaces === 0 ? 'Sold Out' : 'Add to Cart' }}
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div v-else>
+                <!-- Shopping Cart and Checkout -->
+                <h2>Shopping Cart</h2>
+                <div v-if="cart.length === 0">
+                    <p>Your cart is empty.</p>
+                </div>
+                <div v-else>
+                    <div class="cart-items">
+                        <div v-for="(item, index) in cart" class="cart-item">
+                            <h4>{{ item.subject }}</h4>
+                            <p>£{{ item.price }}</p>
+                            <button @click="removeFromCart(index)">Remove</button>
+                        </div>
+                    </div>
+
+                    <h2>Checkout</h2>
+                    <form @submit.prevent="submitOrder">
+                        <div class="form-group">
+                            <label for="name">Name:</label>
+                            <input type="text" v-model="order.name" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="phone">Phone:</label>
+                            <input type="text" v-model="order.phone" required>
+                        </div>
+                        <button type="submit" :disabled="!isFormValid">Place Order</button>
+                    </form>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/vue@2.7.14/dist/vue.js"></script>
+    <script src="app.js"></script>
+</body>
 </html>

@@ -1,8 +1,11 @@
 require('dotenv').config();
 const express = require('express');
 const { MongoClient, ObjectId } = require('mongodb');
+const cors = require('cors');
 const app = express();
 const port = 3000;
+
+app.use(cors());
 
 // Middleware for logging requests
 app.use((req, res, next) => {
@@ -57,7 +60,7 @@ app.get('/api/lessons', async (req, res) => {
   }
 });
 
-// Save a new order and update lesson spaces atomically
+// Save a new order
 app.post('/api/orders', async (req, res) => {
   try {
     const order = req.body;
@@ -67,30 +70,11 @@ app.post('/api/orders', async (req, res) => {
       return res.status(400).send('Invalid order format');
     }
 
-    // Create an array of update operations for each lesson in the cart
-    const bulkOps = order.cart.map(item => ({
-      updateOne: {
-        filter: { _id: new ObjectId(item._id), spaces: { $gt: 0 } }, // Ensure space is available
-        update: { $inc: { spaces: -1 } }
-      }
-    }));
-
-    // Execute the bulk update
-    const updateResult = await lessonsCollection.bulkWrite(bulkOps);
-
-    // Check if all updates were successful
-    if (updateResult.modifiedCount !== order.cart.length) {
-      // This part is tricky without transactions. If some updates failed, we should ideally roll back.
-      // For now, we'll return an error if not all items could be "purchased".
-      // A more robust solution would involve reverting the successful updates.
-      return res.status(409).send('Could not update spaces for all lessons. Order not placed.');
-    }
-
-    // If updates were successful, insert the new order
+    // Insert the new order
     const result = await ordersCollection.insertOne({
       name: order.name,
       phone: order.phone,
-      lessons: order.cart.map(item => ({ lessonId: new ObjectId(item._id), spaces: 1 })), // Each cart item is 1 space
+      lessons: order.cart.map(item => ({ lessonId: new ObjectId(item._id), spaces: 1 })),
       createdAt: new Date()
     });
 
